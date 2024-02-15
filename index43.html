@@ -39,21 +39,22 @@
         stopTime += durationSec;
         oscillatorNode.stop(stopTime);
     }
-    function zvuk1() {
+    function zvukPotrava() {
         beep(500, 0.01, true);
     }
-    function test2() {
-        // beep(50, 2, true);
-        // beep(5000, 2, true);
-        // beep(50, 0, true);
+    function zvukKonecLevelu() {
+        beep(500, .2, true);
+        beep(1000, .5, true);
+        beep(3500, .2, true);
+        //beep(50, 0, true);
     }
-    function test3() {
-        beep(50, .1, true);
-        beep(5000, .1, true);
-        beep(50, 0, true);
+    function zvukSmrt() {
+        beep(50, .5, true);
+        beep(5000, 1.5, true);
+        beep(50, 2, true);
     }
-    function ZvukAlarm(frequency) {
-        beep(500+frequency, .01, true);
+    function ZvukAlarm() {
+        beep(1000, .5, true);
     }
 
 
@@ -147,6 +148,7 @@
     function VykresliScenu() {
         if (Strach > 0) {
             Strach--;
+            //if (Strach%100==0) ZvukAlarm();
         }
         if (!GameOver) {
             VykresliPlochu();
@@ -235,7 +237,7 @@
         ctx.fill();
         ctx.fillStyle = "black";
         ctx.font = "30px Arial";
-        ctx.fillText("SCORE: " + UpravCisloNaText(Score, 9) + "      LEVEL: "
+        ctx.fillText("SCORE: " + UpravCisloNaText(potrava.length, 9) + "      LEVEL: "
             + UpravCisloNaText(Level, 3), -tileSize, tileSize * 7);
         ///Vykreslení životů
         for (let i = 0; i < Zivoty - 1; i++) {
@@ -564,13 +566,15 @@
                 if (Strach) Strach = StrachMax - 1;
                 else Strach = StrachMax;
                 BoduZaDucha = 200;
+                ZvukAlarm();
             }
             potrava.splice(nalezen, 1);
-            zvuk1();
+            zvukPotrava();
             Score += 10 * Level;
             if (potrava.length == 0) {
+                //Sežrána všechna potrava -> konec levelu
                 Level++; if (Level % 5 == 0) Zivoty++;
-                test3();
+                zvukKonecLevelu();
                 BarvaSten = 70;
                 KonecLevelu = true;
             }
@@ -596,7 +600,7 @@
         });
         //Dopaden duchem...
         if (chycen >= 0 && Strach == 0) {
-            test3();
+            zvukSmrt();
             BarvaSten = 70;
             PacmanSmrt = PacmanSmrtMax;
 
