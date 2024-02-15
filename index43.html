@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <canvas id="platno" height="600" width="1200" style="background-color: darkslategray;"></canvas>
+</body>
+<script>
+    var audioContext = null;
+    var oscillatorNode = null;
+    var stopTime = 0;
+    function beep(frequency, durationSec, ramp = false) {
+        if (oscillatorNode == null) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            stopTime = audioContext.currentTime;
+            oscillatorNode = audioContext.createOscillator();
+            oscillatorNode.type = "sine";
+            oscillatorNode.connect(audioContext.destination);
+            if (ramp) {
+                oscillatorNode.frequency.setValueAtTime(frequency, stopTime);
+            }
+            oscillatorNode.start();
+            oscillatorNode.onended = function () {
+                oscillatorNode = null;
+                audioContext = null;
+            }
+        }
+        if (ramp) {
+            oscillatorNode.frequency.linearRampToValueAtTime(frequency, stopTime); // value in hertz
+        } else {
+            oscillatorNode.frequency.setValueAtTime(frequency, stopTime);  // value in hertz
+        }
+        stopTime += durationSec;
+        oscillatorNode.stop(stopTime);
+    }
+    function zvuk1() {
+        beep(500, 0.01, true);
+    }
+    function test2() {
+        // beep(50, 2, true);
+        // beep(5000, 2, true);
+        // beep(50, 0, true);
+    }
+    function test3() {
+        beep(50, .1, true);
+        beep(5000, .1, true);
+        beep(50, 0, true);
+    }
+    function ZvukAlarm(frequency) {
+        beep(500+frequency, .01, true);
+    }
+
+
+
+
+    document.addEventListener('keydown', keyPush);
+
+    let platno = document.getElementById("platno");
+    let ctx = platno.getContext("2d");
+
+    let tileSize = platno.height / 10;
+    let Radius = tileSize * .35;
+    let plochaSizeX = 10;
+    let plochaSizeY = 5;
+    var posunPacmanaX;
+    var posunPacmanaY;
+    var ChciPosunPacmanaX;
+    var ChciPosunPacmanaY;
+    let rychlostPacmana = 2.5;
+    var Rozevreni;
+    var PacmanX;
+    var PacmanY;
+    let DomecekX = 4.5 * tileSize;
+    let DomecekY = 2.5 * tileSize;
+    let StrachMax = 450;
+    let PacmanSmrtMax = 100;
+    let VypsatBodyZaDuchaMax = 50;
+    let VypsatBodyZaDucha = 0;
+    let BoduZaDucha = 200;
+
+
+
+
+    //Naplnění dat bludiště
+    let svisle = []; let vodorovne = []; let potrava = [];
+    let svisleZdroj = ["1,0,1", "1,2,3", "1,4,5", "2,1,2", "2,3,4", "3,0,1", "3,2,3",
+        "5.3,2,3", "7,0,1", "7,2,3", "8,1,2", "8,3,4", "9,0,1", "9,2,3", "9,4,5"];
+    let vodorovneZdroj = ["0,1,3", "0,7,9", "1,0,1", "1,3,7", "1,9,10", "2,0,1",
+        "2,2,3", "2,4,6", "2,7,8", "2,9,10", "3,0,1", "3,4,6", "3,9,10", "4,0,1",
+        "4,2,3", "4,4,6", "4,7,8", "4,9,10", "5,1,9"];
+    svisleZdroj.forEach(element => {
+        let souradnice = element.split(",");
+        svisle.push({ x: souradnice[0], y1: souradnice[1], y2: souradnice[2] });
+    });
+    vodorovneZdroj.forEach(element => {
+        let souradnice = element.split(",");
+        vodorovne.push({ y: souradnice[0], x1: souradnice[1], x2: souradnice[2] });
+    });
+
+    let Duchove = [];
+    var GameOver;
+    var PlayAgain;
+    var Zivoty;
+    var Level;
+    var KonecLevelu;
+    var Score;
+    var CekatKlavesu;
+    var BarvaSten;
+    var Strach;
+    var PacmanSmrt;
+
+    PlayGame();
+
+
+    function PlayGame() {
+        GameOver = false;
+        PlayAgain = true;
+        Zivoty = 5;
+        Level = 1;
+        KonecLevelu = false;
+        Score = 0;
+        CekatKlavesu = true;
+        BarvaSten = 0;
+        Strach = 0;
+        PacmanSmrt = 0;
+        NaplnPotravu();
+        RestartujDuchy();
+        RestartujPacmana();
+        ctx.translate(tileSize, tileSize);
+        GameLoop();
+    }
+
+
+    function GameLoop() {
+        VykresliScenu();
+        if (!GameOver) setTimeout(GameLoop, 1000 / 60);
+        else VypisGameOver();
+    }
+
+
+    function VykresliScenu() {
+        if (Strach > 0) {
+            Strach--;
+        }
+        if (!GameOver) {
+            VykresliPlochu();
+            VykresliMriz();
+            ctx.translate(tileSize, tileSize);
+            VykresliBludiste();
+            VykresliPacmana(PacmanX, PacmanY, Radius, Math.atan2(posunPacmanaY, posunPacmanaX), Rozevreni);
+            VykresliStavHry();
+            if (BarvaSten == 0) Rozevreni = (Rozevreni - .1); if (Rozevreni < -1) Rozevreni = 1;
+            VykresliDuchy();
+        }
+        if (!CekatKlavesu) {
+            PosunPacmana();
+            PosunDuchy();
+            //Kolize s duchy
+            if (VypsatBodyZaDucha == 0) OtestujKoliziDuchove();
+
+        }
+        else CekejKlavesu();
+        ctx.translate(-tileSize, -tileSize);
+    }
+
+    function VykresliPlochu() {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, tileSize * (2 + plochaSizeX), tileSize * (2 + plochaSizeY));
+    }
+
+    function VykresliMriz() {
+        ctx.strokeStyle = "green"; ctx.lineWidth = 1; ctx.lineCap = "square";
+        for (let x = 0; x < plochaSizeX + 2; x++) {
+            for (let y = 0; y < plochaSizeY + 2; y++) {
+                ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            }
+        }
+    }
+
+    function VykresliBludiste() {
+        barva = "white";
+        if (BarvaSten > 0) {
+            barva = "#" + BarvaSten.toString(8) + BarvaSten.toString(8);
+            BarvaSten++;
+            if (BarvaSten > 120 && PacmanSmrt == 0) {
+                BarvaSten = 0;
+                if (KonecLevelu) {
+                    RestartujDuchy();
+                    RestartujPacmana();
+                    NaplnPotravu();
+                    KonecLevelu = false;
+                    CekatKlavesu = true;
+                }
+            }
+        }
+        //vykresli svisle cary
+        svisle.forEach(element => {
+            VykresliStenu(element.x, element.y1, element.x, element.y2, barva);
+        });
+        //vykresli vodorovne cary
+        vodorovne.forEach(element => {
+            VykresliStenu(element.x1, element.y, element.x2, element.y), barva;
+        });
+        //vykresleni tecek
+        potrava.forEach(element => {
+            if (!element.Power) VykresliStenu(element.x, element.y, element.x, element.y + .001, "orange");
+            else {
+                a = Math.round(Math.abs(Rozevreni * 100)).toString();
+                ctx.strokeStyle = ("#" + a + a + a)
+                ctx.beginPath();
+                ctx.arc(tileSize * element.x, tileSize * element.y, Radius / 4, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+        });
+    }
+
+    function VykresliStenu(x1, y1, x2, y2, barva) {
+        ctx.strokeStyle = barva; ctx.lineWidth = 10; ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x1 * tileSize, y1 * tileSize);
+        ctx.lineTo(x2 * tileSize, y2 * tileSize);
+        ctx.stroke();
+    }
+
+    function VykresliStavHry() {
+        ctx.beginPath();
+        ctx.fillStyle = "darkslategray";
+        ctx.rect(-tileSize, tileSize * 6.5, tileSize * 12, tileSize * .6);
+        ctx.fill();
+        ctx.fillStyle = "black";
+        ctx.font = "30px Arial";
+        ctx.fillText("SCORE: " + UpravCisloNaText(Score, 9) + "      LEVEL: "
+            + UpravCisloNaText(Level, 3), -tileSize, tileSize * 7);
+        ///Vykreslení životů
+        for (let i = 0; i < Zivoty - 1; i++) {
+            VykresliPacmana(tileSize * (10.5 - i), tileSize * 6.8, tileSize * .25, 0, 0.5)
+        }
+    }
+
+    function UpravCisloNaText(cislo, pocetMist) {
+        let Text = "";
+        for (let i = 0; i < pocetMist - cislo.toString().length; i++) Text = "0" + Text;
+        return Text + cislo.toString();
+    }
+
+    function VykresliPacmana(pacmanX, pacmanY, radius, otoceni, rozevreni) {
+        ctx.translate(pacmanX, pacmanY);
+        ctx.strokeStyle = "white";
+        ctx.beginPath();
+        if (PacmanSmrt == 0 || radius == tileSize / 4) ctx.arc(0, 0, radius, otoceni + 1.3 * (1 - Math.abs(rozevreni)), otoceni + 4.9 + 1.3 * Math.abs(rozevreni));
+        else ctx.arc(0, 0, radius, 6.8 - PacmanSmrt / PacmanSmrtMax * 2, 2.6 + PacmanSmrt / PacmanSmrtMax * 2);
+        ctx.lineTo(0, 0);
+        ctx.closePath();
+        ctx.fillStyle = "yellow";
+        ctx.fill();
+        ctx.translate(-pacmanX, -pacmanY);
+    }
+
+    function PosunPacmana() {
+        if (VypsatBodyZaDucha > 0 || KonecLevelu) return;
+        if (PacmanSmrt > 0) {
+            PacmanSmrt--; if (PacmanSmrt == 0) {
+                RestartujPacmana();
+                RestartujDuchy();
+                Zivoty--;
+                if (Zivoty == 0) GameOver = true;
+                CekatKlavesu = true;
+            };
+            return;
+        }
+
+        if (JeKolizeSeStenou(PacmanX + ChciPosunPacmanaX, PacmanY + ChciPosunPacmanaY) == 0 &&
+            !((PacmanX == (DomecekX - tileSize) && PacmanY == DomecekY && ChciPosunPacmanaX == 1))) {  //zákaz, pokud chci zahnout do "domečku"
+            posunPacmanaX = ChciPosunPacmanaX;
+            posunPacmanaY = ChciPosunPacmanaY;
+        }
+        else if (JeKolizeSeStenou(PacmanX + posunPacmanaX, PacmanY + posunPacmanaY) > 0) return;
+        PacmanX += posunPacmanaX * rychlostPacmana;
+        PacmanY += posunPacmanaY * rychlostPacmana;
+        if (PacmanX < 0) PacmanX = plochaSizeX * tileSize;
+        if (PacmanY < 0) PacmanY = plochaSizeY * tileSize;
+        if (PacmanX > plochaSizeX * tileSize) PacmanX = 0;
+        if (PacmanY > plochaSizeY * tileSize) PacmanY = 0;
+        //Kolize s jídlem
+        OtestujKoliziJidlo();
+    }
+
+    function VykresliDuchy() {
+        if (PacmanSmrt > 0 || KonecLevelu) return;
+        Duchove.forEach(element => {
+            //Je duch zabitý?
+            if (element.Smrt > 0) VykresliBodyZaDucha(element);
+            //Je duch v domečku?
+            else if (element.Smrt == -200) {
+                ctx.translate(element.DuchX, element.DuchY);
+                VykresliOci(element, tileSize, tileSize / 10);
+                ctx.translate(-element.DuchX, -element.DuchY);
+            }
+            else if (element.Smrt < 0) VykresliKoma(element);
+            //Je duch naživu?
+            else if (element.Smrt == 0) {
+                let RozkyvX = tileSize / 10;
+                let BarvaTela = element.DuchBarva;
+                let Velikost = tileSize;
+                if (Strach > 0) {
+                    BarvaTela = "blue";
+                    if (Strach < 100 && Strach > 9) BarvaTela = ("#" + Strach.toString() + Strach.toString());
+                    else if (VypsatBodyZaDucha == 0) Velikost = (1 - (Strach % 10) * .02) * tileSize;
+                }
+                if (Strach == 0) {
+                    element.DuchRozkyv = element.DuchRozkyv - .05 * (1 + element.Smrt / 100);
+                    if (element.DuchRozkyv < -1) element.DuchRozkyv = 1;
+                    RozkyvX = Math.abs(element.DuchRozkyv * tileSize / 5)
+                }
+                VykresliDucha(element, BarvaTela, Velikost, RozkyvX);
+            }
+        })
+    }
+
+    function VykresliBodyZaDucha(element) {
+        ctx.translate(element.DuchX, element.DuchY);
+        ctx.beginPath();
+        ctx.fillStyle = "black";
+        ctx.rect(-tileSize / 3, -tileSize / 4, tileSize * .75, tileSize * .5);
+        ctx.fill();
+        ctx.fillStyle = "white";
+        ctx.font = "20px Arial";
+        ctx.fillText(BoduZaDucha.toString(), -tileSize / 4, tileSize / 10);
+        ctx.translate(-element.DuchX, -element.DuchY);
+        VypsatBodyZaDucha--;
+        //Vypršel čas výpisu bodů za ducha?
+        if (VypsatBodyZaDucha == 0) {
+            BoduZaDucha = BoduZaDucha * 2;
+            element.DuchX = Math.floor(element.DuchX / tileSize) * tileSize + tileSize / 2;
+            element.DuchY = Math.floor(element.DuchY / tileSize) * tileSize + tileSize / 2;
+            element.Smrt = -200;
+        }
+    }
+
+    function VykresliKoma(element) {
+        let BarvaTela = "gray";
+        if (element.DuchRychlost == 2.6) BarvaTela = "darkslategray";
+        if (element.DuchRychlost == 2.4) BarvaTela = "darkgray";
+        element.DuchX = DomecekX + (tileSize * 2 * (2.5 - element.DuchRychlost));
+        let Velikost = tileSize * .8;
+        if (element.Smrt > -30) Velikost = (1 + (element.Smrt / 30) * .2) * tileSize;
+        let RozkyvX = tileSize / 10;
+        if (Strach > 0 && VypsatBodyZaDucha == 0) Velikost = (.8 - (Strach % 20) * .005) * tileSize;
+        if (Strach == 0) {
+            element.DuchRozkyv = element.DuchRozkyv - .05 * (1 + element.Smrt / 200);
+            if (element.DuchRozkyv < -1) element.DuchRozkyv = 1;
+            RozkyvX = Math.abs(element.DuchRozkyv * tileSize / 5)
+        }
+        VykresliDucha(element, BarvaTela, Velikost, RozkyvX);
+        if (!CekatKlavesu) element.Smrt++;
+        //Doběhlo koma? Pokud ano, rozběhni ducha...
+        if (element.Smrt == 0) {
+            element.PosunDuchaX = -1;
+            element.PosunDuchaY = 0;
+        }
+
+    }
+    function VykresliDucha(element, barvaTela, velikost, rozkyvX) {
+        ctx.translate(element.DuchX, element.DuchY);
+        //vykresli tělo
+        ctx.beginPath();
+        ctx.moveTo(-.4 * velikost, .3 * velikost);
+        ctx.lineTo(-.4 * velikost + rozkyvX, -.1 * velikost);
+        ctx.lineTo(.2 * velikost + rozkyvX, -.1 * velikost);
+        ctx.lineTo(.4 * velikost, .3 * velikost);
+        ctx.closePath();
+        ctx.fillStyle = barvaTela;
+        ctx.fill();
+        ctx.beginPath();
+        //vykresli horní polokouli (hlavu)
+        ctx.arc(rozkyvX - .1 * velikost, -.1 * velikost, .3 * velikost, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill();
+        //vykresli spodní 4 obloučky
+        for (let i = 0; i < 4; i++) {
+            ctx.beginPath();
+            ctx.arc(-.3 * velikost + i * .2 * velikost, .3 * velikost, .1 * velikost, 0, Math.PI);
+            ctx.closePath();
+            ctx.fill();
+        }
+        //vykresli oči
+        if ((Strach == 0 && element.Smrt == 0)) VykresliOci(element, velikost, rozkyvX);
+        //Při strachu jiné oči + navíc chrup:-)
+        else {
+            ctx.strokeStyle = "black";
+            ctx.fillStyle = "black";
+            ctx.lineCap = "round";
+            for (let i = 0; i < 2; i++) {
+                let posunX = .3 * velikost * i;
+                ctx.beginPath();
+                ctx.ellipse(-.25 * velikost + posunX + rozkyvX, -.1 * velikost, .05 * velikost,
+                    .1 * velikost, 0, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            if (0 == 0) {
+                ctx.beginPath();
+                ctx.lineWidth = 1;
+                ctx.moveTo(-.35 * velikost + rozkyvX / 2, .2 * velikost);
+                for (let i = 0; i < 3; i++) {
+                    let posunX = .2 * velikost * i;
+                    ctx.lineTo(-.25 * velikost + posunX + rozkyvX / 2, .1 * velikost);
+                    ctx.lineTo(-.15 * velikost + posunX + rozkyvX / 2, .2 * velikost);
+                    ctx.stroke();
+                }
+            }
+        }
+        ctx.translate(-element.DuchX, -element.DuchY);
+    }
+
+    function VykresliOci(element, velikost, rozkyvX) {
+        //Bělma
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.ellipse(-.25 * velikost + rozkyvX, 0, 0.1 * velikost, .14 * velikost, 0, 0, 2 * Math.PI);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(.05 * velikost + rozkyvX, 0, 0.1 * velikost, .14 * velikost, 0, 0, 2 * Math.PI);
+        ctx.closePath(); ctx.fill();
+        //Duhovky
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.ellipse((-.25 + element.PosunDuchaX / 30) * velikost + rozkyvX, (.00 + element.PosunDuchaY / 15) * velikost, 0.07 * velikost, .08 * velikost, 0, 0, 2 * Math.PI);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse((0.05 + element.PosunDuchaX / 30) * velikost + rozkyvX, (.00 + element.PosunDuchaY / 15) * velikost, 0.07 * velikost, .08 * velikost, 0, 0, 2 * Math.PI);
+        ctx.closePath(); ctx.fill();
+    }
+
+    function PosunDuchy() {
+        if (BarvaSten > 0 || PacmanSmrt > 0 || VypsatBodyZaDucha > 0) return;
+        //return;
+        Duchove.forEach(element => {
+            let koeficient = element.DuchRychlost;
+            //Je duch v domečku?
+            if (element.Smrt != 0 && element.Smrt != -200) return;
+            //Je začátek strachu?
+            if (Strach == StrachMax && element.Smrt != -200) {
+                //alert("začíná strach!") -> čelem vzad
+                element.PosunDuchaX = -element.PosunDuchaX;
+                element.PosunDuchaY = -element.PosunDuchaY;
+            }
+            let NutnoZahnout = false;
+            //Možno jít kupředu?
+            let CilX = PacmanX; let CilY = PacmanY;
+            if (element.Smrt == -200) {
+                CilX = DomecekX; CilY = DomecekY;
+            }
+            let vektorX = element.DuchX - CilX;
+            let vektorY = element.DuchY - CilY;
+            if (Strach > 0 && element.Smrt != -200) {
+                vektorX = -vektorX;
+                vektorY = -vektorY;
+            }
+            if (JeKolizeSeStenou(element.DuchX + element.PosunDuchaX, element.DuchY + element.PosunDuchaY) > 0) {
+                //Není -> nutno zahnout, resp. udělat čelem vzad
+                //alert("narazil jsem!");
+                NutnoZahnout = true;
+                let Nahoda = 1 - 2 * Math.round(Math.random());
+                if (element.PosunDuchaX && vektorY == 0) {
+
+                    vektorY = Nahoda;
+                    //alert("delam nahodu! VektorY=" + vektorY);
+
+                }
+                if (element.PosunDuchaY && vektorX == 0) {
+
+                    vektorX = Nahoda;
+                    //alert("delam nahodu! VektorX=" + vektorX);
+                }
+                Zahni(element, -vektorX, -vektorY, NutnoZahnout);
+            }
+            else {
+
+
+                //Má smysl zahnout?
+                if ((element.PosunDuchaX && vektorY) || (element.PosunDuchaY && vektorX)) {
+                    //Má
+                    Zahni(element, -vektorX, -vektorY, NutnoZahnout)
+                }
+            }
+            //Jdi dopředu
+            if (element.Smrt == -200) {
+                koeficient = 5;
+                if (OtestujBlizkost(element.DuchX, element.DuchY, DomecekX, DomecekY, tileSize / 10) == 1) element.Smrt++;
+            }
+            else if (Strach > 0) koeficient = koeficient / 2;
+            element.DuchX += Math.round(element.PosunDuchaX * koeficient);
+            element.DuchY += Math.round(element.PosunDuchaY * koeficient);
+            if (element.DuchX < 0) element.DuchX = plochaSizeX * tileSize;
+            if (element.DuchY < 0) element.DuchY = plochaSizeY * tileSize;
+            if (element.DuchX > plochaSizeX * tileSize) element.DuchX = 0;
+            if (element.DuchY > plochaSizeY * tileSize) element.DuchY = 0;
+        });
+    }
+
+    function Zahni(element, vektorX, vektorY, NutnoZahnout) {
+        if (vektorX > 0) vektorX = 1;
+        else vektorX = -1;
+        if (vektorY > 0) vektorY = 1;
+        else vektorY = -1;
+        if (element.PosunDuchaX) {
+            if (JeKolizeSeStenou(element.DuchX, element.DuchY + vektorY) == 0) {
+                element.PosunDuchaX = 0; element.PosunDuchaY = vektorY;
+            }
+            else if (JeKolizeSeStenou(element.DuchX, element.DuchY - vektorY) == 0) {
+                element.PosunDuchaX = 0; element.PosunDuchaY = -vektorY;
+            }
+            else if (NutnoZahnout) {
+                element.PosunDuchaX = -element.PosunDuchaX;
+                element.PosunDuchaY = -element.PosunDuchaY;
+            }
+        }
+        else {
+            if (JeKolizeSeStenou(element.DuchX + vektorX, element.DuchY) == 0) {
+                element.PosunDuchaY = 0; element.PosunDuchaX = vektorX;
+            }
+            else if (JeKolizeSeStenou(element.DuchX - vektorX, element.DuchY) == 0) {
+                element.PosunDuchaY = 0; element.PosunDuchaX = -vektorX;
+            }
+            else if (NutnoZahnout) {
+                element.PosunDuchaX = -element.PosunDuchaX;
+                element.PosunDuchaY = -element.PosunDuchaY;
+            }
+        }
+    }
+
+    function JeKolizeSeStenou(x, y) {
+        let pocitadlo = 0;
+        svisle.forEach(element => {
+            let rozdilX = Math.abs(element.x * tileSize - x);
+            let horniMezY = (element.y1 * tileSize - tileSize / 2);
+            let dolniMezY = (element.y2 * tileSize + tileSize / 2);
+            if (rozdilX < tileSize / 2 && (y > horniMezY && y < dolniMezY)) pocitadlo++;
+        });
+        vodorovne.forEach(element => {
+            let rozdilY = Math.abs(element.y * tileSize - y);
+            let levaMezX = (element.x1 * tileSize - tileSize / 2);
+            let pravaMezX = (element.x2 * tileSize + tileSize / 2);
+            if (rozdilY < tileSize / 2 && (x > levaMezX && x < pravaMezX)) pocitadlo++;
+        });
+        return pocitadlo;
+    }
+
+    function OtestujKoliziJidlo() {
+        let nalezen = -1;
+        let pocitadlo = 0;
+        potrava.forEach(element => {
+            if (OtestujBlizkost(element.x * tileSize, element.y * tileSize, PacmanX, PacmanY, tileSize / 4) == 1) nalezen = pocitadlo;
+            pocitadlo++;
+        });
+        if (nalezen >= 0) {
+            if (potrava[nalezen].Power) {
+                if (Strach) Strach = StrachMax - 1;
+                else Strach = StrachMax;
+                BoduZaDucha = 200;
+            }
+            potrava.splice(nalezen, 1);
+            zvuk1();
+            Score += 10 * Level;
+            if (potrava.length == 0) {
+                Level++; if (Level % 5 == 0) Zivoty++;
+                test3();
+                BarvaSten = 70;
+                KonecLevelu = true;
+            }
+        }
+    }
+
+    function NaplnPotravu() {
+        potrava = [];
+        for (var i = 0; i < plochaSizeY; i++) {
+            for (var j = 1; j < plochaSizeX - 1; j++) potrava.push({ x: j + .5, y: i + .5 })
+        };
+        potrava.splice(19, 2); potrava.splice(2, 4);
+        potrava[3].Power = true; potrava[26].Power = true;
+    }
+
+    function OtestujKoliziDuchove() {
+        if (PacmanSmrt > 0) return;
+        let chycen = -1;
+        let pocitadlo = 0;
+        Duchove.forEach(element => {
+            if (OtestujBlizkost(element.DuchX, element.DuchY, PacmanX, PacmanY, tileSize / 2) == 1 && element.Smrt != -200) chycen = pocitadlo;
+            pocitadlo++;
+        });
+        //Dopaden duchem...
+        if (chycen >= 0 && Strach == 0) {
+            test3();
+            BarvaSten = 70;
+            PacmanSmrt = PacmanSmrtMax;
+
+        }
+        //Sežrání ducha:
+        if (chycen >= 0 && Strach > 0) {
+            Duchove[chycen].Smrt = 1;
+            Score += BoduZaDucha;
+            VypsatBodyZaDucha = VypsatBodyZaDuchaMax;
+
+        }
+    }
+
+    function OtestujBlizkost(x1, y1, x2, y2, kritickaVzdalenost) {
+        let nalez = 0;
+        if (Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)) < kritickaVzdalenost) nalez = 1;
+        return nalez;
+    }
+
+    function RestartujPacmana() {
+        posunPacmanaX = 0;
+        posunPacmanaY = 0;
+        ChciPosunPacmanaX = 0;
+        ChciPosunPacmanaY = 0;
+        Rozevreni = .5;
+        PacmanX = tileSize * 5;
+        PacmanY = tileSize * 4.5;
+        Strach = 0; BoduZaDucha = 200;
+    }
+
+    function RestartujDuchy() {
+        Duchove = [{
+            DuchX: DomecekX - tileSize / 5, DuchY: DomecekY,
+            DuchRychlost: 2.6, DuchBarva: "red",
+            DuchRozkyv: 0, PosunDuchaX: -1, PosunDuchaY: 0, Smrt: -50
+        },
+        {
+            DuchX: DomecekX, DuchY: DomecekY,
+            DuchRychlost: 2.5, DuchBarva: "pink",
+            DuchRozkyv: .8, PosunDuchaX: -1, PosunDuchaY: 0, Smrt: -100
+        },
+        {
+            DuchX: DomecekX + tileSize / 5, DuchY: DomecekY,
+            DuchRychlost: 2.4, DuchBarva: "cyan",
+            DuchRozkyv: .5, PosunDuchaX: -1, PosunDuchaY: 0, Smrt: -150
+        },
+        ]
+    }
+
+    function CekejKlavesu() {
+
+        ctx.beginPath();
+        ctx.fillStyle = "black";
+        if (GameOver) {
+            ctx.rect(tileSize * 3.5, tileSize * 2.2, tileSize * 3, tileSize * .7);
+            ctx.rect(tileSize * 2.1, tileSize * 2.7, tileSize * 5.8, tileSize * .7);
+            ctx.fill();
+            ctx.fillStyle = "yellow";
+            ctx.font = "25px Arial";
+            ctx.fillText("GAME OVER!", tileSize * 3.7, tileSize * 2.7);
+            ctx.fillText("WANT TO PLAY AGAIN (Y/N)?", tileSize * 2.1, tileSize * 3.2);
+        }
+        else {
+            ctx.rect(tileSize * 3.8, tileSize * 3.2, tileSize * 2.5, tileSize * .6);
+            ctx.fill();
+            ctx.fillStyle = "yellow";
+            ctx.font = "25px Arial";
+            ctx.fillText("READY!", tileSize * 4.2, tileSize * 3.7);
+        }
+    }
+
+    function VypisGameOver() {
+        ctx.beginPath();
+        ctx.fillStyle = "black";
+        ctx.rect(tileSize * 4.5, tileSize * 3.2, tileSize * 3, tileSize * .7);
+        ctx.rect(tileSize * 3.1, tileSize * 3.7, tileSize * 5.8, tileSize * .7);
+        ctx.fill();
+        ctx.fillStyle = "yellow";
+        ctx.font = "25px Arial";
+        ctx.fillText("GAME OVER!", tileSize * 4.7, tileSize * 3.7);
+        ctx.fillText("WANT TO PLAY AGAIN (Y/N)?", tileSize * 3.1, tileSize * 4.2);
+    }
+
+    function keyPush(event) {
+        CekatKlavesu = false;
+        switch (event.key) {
+            case "ArrowRight": ChciPosunPacmanaX = 1; ChciPosunPacmanaY = 0;
+                break;
+            case "ArrowDown": ChciPosunPacmanaX = 0; ChciPosunPacmanaY = 1;
+                break;
+            case "ArrowLeft": ChciPosunPacmanaX = -1; ChciPosunPacmanaY = 0;
+                break;
+            case "ArrowUp": ChciPosunPacmanaX = 0; ChciPosunPacmanaY = -1;
+                break;
+            case "q": alert("pausa");
+                break;
+            case "y": if (GameOver && PlayAgain) {
+                ctx.translate(-tileSize, -tileSize);
+                PlayGame();
+            }
+                break;
+            case "n": if (GameOver) {
+                alert("Konec programu.");
+                PlayAgain = false;
+            }
+                break;
+            default: CekatKlavesu = false;
+                break
+        }
+    }
+</script>
+
+</html>
