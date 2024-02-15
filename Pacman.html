@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Pacman</title>
 </head>
 
 <body>
@@ -57,7 +57,12 @@
         beep(1000, .5, true);
     }
 
-
+    function zvukSezraniDucha() {
+        beep(500, .1, true);
+        beep(1000, .1, true);
+        beep(2500, .1, true);
+        beep(50, .1, true);
+    }
 
 
     document.addEventListener('keydown', keyPush);
@@ -581,15 +586,6 @@
         }
     }
 
-    function NaplnPotravu() {
-        potrava = [];
-        for (var i = 0; i < plochaSizeY; i++) {
-            for (var j = 1; j < plochaSizeX - 1; j++) potrava.push({ x: j + .5, y: i + .5 })
-        };
-        potrava.splice(19, 2); potrava.splice(2, 4);
-        potrava[3].Power = true; potrava[26].Power = true;
-    }
-
     function OtestujKoliziDuchove() {
         if (PacmanSmrt > 0) return;
         let chycen = -1;
@@ -610,7 +606,7 @@
             Duchove[chycen].Smrt = 1;
             Score += BoduZaDucha;
             VypsatBodyZaDucha = VypsatBodyZaDuchaMax;
-
+            zvukSezraniDucha();
         }
     }
 
@@ -648,6 +644,15 @@
             DuchRozkyv: .5, PosunDuchaX: -1, PosunDuchaY: 0, Smrt: -150
         },
         ]
+    }
+
+    function NaplnPotravu() {
+        potrava = [];
+        for (var i = 0; i < plochaSizeY; i++) {
+            for (var j = 1; j < plochaSizeX - 1; j++) potrava.push({ x: j + .5, y: i + .5 })
+        };
+        potrava.splice(19, 2); potrava.splice(2, 4);
+        potrava[3].Power = true; potrava[26].Power = true;
     }
 
     function CekejKlavesu() {
